@@ -1,0 +1,20 @@
+[versions]
+kotlin = "2.1.21"
+git-versioning = "6.4.3"
+ktor = "3.2.2"
+trueangle-lambda = "0.0.6"
+trueangle-lambda-plugin = "0.0.2"
+jwtkt = "1.1.0"
+
+[libraries]
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-curl = { module = "io.ktor:ktor-client-curl", version.ref = "ktor" }
+trueangle-lambda-runtime = { module = "io.github.trueangle:lambda-runtime", version.ref = "trueangle-lambda" }
+trueangle-lambda-events = { module = "io.github.trueangle:lambda-events", version.ref = "trueangle-lambda" }
+jwtkt = { module = "com.appstractive:jwt-kt", version.ref = "jwtkt" }
+jwtkt-rsa = { module = "com.appstractive:jwt-rsa-kt", version.ref = "jwtkt" }
+
+[plugins]
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+git-versioning = { id = "me.qoomon.git-versioning", version.ref = "git-versioning" }
+trueangle-lambda = { id = "io.github.trueangle.plugin.lambda", version.ref = "trueangle-lambda-plugin" }

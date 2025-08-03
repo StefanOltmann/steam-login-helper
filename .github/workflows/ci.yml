@@ -1,0 +1,32 @@
+name: Build Lambda
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+
+      - name: Checkout workspace
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set Gradle Wrapper permissions
+        run: chmod +x ./gradlew
+
+      - name: Run build
+        run: ./gradlew build buildLambdaRelease --stacktrace
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact
+          path: build/lambda/release/steam-login-helper.zip
