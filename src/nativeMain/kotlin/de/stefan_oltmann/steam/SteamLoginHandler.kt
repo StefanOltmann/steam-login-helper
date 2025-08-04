@@ -105,17 +105,22 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
             /*
              * Check the API key, if one is required.
              */
-            if (!apiKey.isNullOrBlank() && input.headers["x-api-key"] != apiKey) {
+            if (!apiKey.isNullOrBlank()) {
 
-                Log.warn("Denied. Called with invalid API key: $apiKey")
+                val givenApiKey = input.headers["x-api-key"]
 
-                return APIGatewayV2Response(
-                    statusCode = HttpStatusCode.Unauthorized.value,
-                    body = "Please provide an API key.",
-                    cookies = null,
-                    headers = null,
-                    isBase64Encoded = false
-                )
+                if (givenApiKey != apiKey) {
+
+                    Log.warn("Denied. Called with invalid API key: $givenApiKey")
+
+                    return APIGatewayV2Response(
+                        statusCode = HttpStatusCode.Unauthorized.value,
+                        body = "Please provide an API key.",
+                        cookies = null,
+                        headers = null,
+                        isBase64Encoded = false
+                    )
+                }
             }
 
             Log.info("Called: ${input.rawPath}")
