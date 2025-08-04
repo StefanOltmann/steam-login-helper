@@ -31,9 +31,9 @@ import io.github.trueangle.knative.lambda.runtime.events.apigateway.APIGatewayV2
 import io.github.trueangle.knative.lambda.runtime.events.apigateway.APIGatewayV2Response
 import io.github.trueangle.knative.lambda.runtime.handler.LambdaBufferedHandler
 import io.github.trueangle.knative.lambda.runtime.log.Log
-import io.github.trueangle.knative.lambda.runtime.log.debug
 import io.github.trueangle.knative.lambda.runtime.log.error
 import io.github.trueangle.knative.lambda.runtime.log.info
+import io.github.trueangle.knative.lambda.runtime.log.warn
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.curl.Curl
 import io.ktor.client.request.forms.FormDataContent
@@ -75,6 +75,10 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
         getenv("SALT")?.toKString() ?: error("SALT not set.")
 
     @OptIn(ExperimentalForeignApi::class)
+    private val apiKey =
+        getenv("API_KEY")?.toKString()
+
+    @OptIn(ExperimentalForeignApi::class)
     private val allowKeyGeneration =
         getenv("KEY_GENERATION")?.toKString() ?: error("KEY_GENERATION not set.")
 
@@ -97,6 +101,22 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
     ): APIGatewayV2Response {
 
         try {
+
+            /*
+             * Check the API key, if one is required.
+             */
+            if (!apiKey.isNullOrBlank() && input.headers["x-api-key"] != apiKey) {
+
+                Log.warn("Denied. Called with invalid API key: $apiKey")
+
+                return APIGatewayV2Response(
+                    statusCode = HttpStatusCode.Unauthorized.value,
+                    body = "Please provide an API key.",
+                    cookies = null,
+                    headers = null,
+                    isBase64Encoded = false
+                )
+            }
 
             Log.info("Called: ${input.rawPath}")
 
