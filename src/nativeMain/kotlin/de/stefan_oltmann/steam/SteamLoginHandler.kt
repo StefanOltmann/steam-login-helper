@@ -135,7 +135,12 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
         input: APIGatewayV2Request
     ): APIGatewayV2Response {
 
-        val domainName = input.context.domainName
+        /* Case-insensitive header lookup, because API Gateway often lowercases headers. */
+        val forwardedHost = input.headers.entries
+            .find { it.key.equals("X-Forwarded-Host", ignoreCase = true) }
+            ?.value
+
+        val domainName = forwardedHost ?: input.context.domainName
 
         val redirectUrl = input.queryStringParameters?.get("redirect")
 
@@ -220,8 +225,6 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
         val jwtString = signedJWT.toString()
 
         val location = "$redirectUrl?token=$jwtString"
-
-        Log.debug("Calling: $location")
 
         /*
          * Respond with a redirect to Steam login
