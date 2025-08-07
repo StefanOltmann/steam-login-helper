@@ -167,18 +167,12 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
 
         val domainName = forwardedHost ?: input.context.domainName
 
-        val redirectUrl = input.queryStringParameters?.get("redirect")
-
-        if (redirectUrl.isNullOrBlank())
-            return APIGatewayV2Response(
-                statusCode = HttpStatusCode.BadRequest.value,
-                headers = null,
-                body = "BadRequest: Parameter 'redirect' is missing.",
-                isBase64Encoded = false,
-                cookies = null
-            )
-
-        val redirectUrlEncoded = redirectUrl.encodeURLPathPart()
+        /*
+         * The redirect parameter is optional.
+         * The service can also be called to get a token shown in browser.
+         */
+        val redirectUrlEncoded =
+            input.queryStringParameters?.get("redirect")?.encodeURLPathPart() ?: ""
 
         val steamLoginUrl = "https://steamcommunity.com/openid/login?" +
             "openid.ns=http://specs.openid.net/auth/2.0" +
@@ -211,9 +205,6 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
         val redirectUrl = input.rawPath
             .removePrefix("/callback/")
             .decodeURLPart()
-
-        if (redirectUrl.isBlank())
-            error("Invalid redirect URL in path ${input.rawPath}")
 
         val steamId = validateSteamLogin(stringParams)
 
@@ -249,18 +240,60 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
 
         val jwtString = signedJWT.toString()
 
-        val location = "$redirectUrl?token=$jwtString"
+        return if (redirectUrl.isNotBlank()) {
 
-        /*
-         * Respond with a redirect to Steam login
-         */
-        return APIGatewayV2Response(
-            statusCode = HttpStatusCode.Found.value,
-            headers = mapOf("Location" to location),
-            body = "Redirecting to $redirectUrl ...",
-            isBase64Encoded = false,
-            cookies = null
-        )
+            /*
+             * Respond with a redirect to Steam login
+             */
+            APIGatewayV2Response(
+                statusCode = HttpStatusCode.Found.value,
+                headers = mapOf("Location" to "$redirectUrl?token=$jwtString"),
+                body = "Redirecting to $redirectUrl ...",
+                isBase64Encoded = false,
+                cookies = null
+            )
+
+        } else {
+
+            /*
+             * Respond with an HTML page displaying the token.
+             */
+            APIGatewayV2Response(
+                statusCode = HttpStatusCode.OK.value,
+                headers = mapOf(
+                    "Content-Type" to "text/html"
+                ),
+                body = """
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>SteamLoginHelper</title>
+                        <style>
+                            body {
+                                font-family: sans-serif;
+                                padding: 2em;
+                            }
+                            pre {
+                                background-color: #f4f4f4;
+                                padding: 1em;
+                                border: 1px solid #ccc;
+                                border-radius: 8px;
+                                white-space: pre-wrap;
+                                word-break: break-all;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h3>This is your auth token. Keep it a secret!</h3>
+                        <pre>$jwtString</pre>
+                    </body>
+                    </html>
+                """.trimIndent(),
+                isBase64Encoded = false,
+                cookies = null
+            )
+        }
     }
 
     private suspend fun handleGenerateKeys(): APIGatewayV2Response {
