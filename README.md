@@ -35,10 +35,8 @@ This will create a file named `steam-login-helper.zip` in `build/lambda/release/
 14. Click on `Save`.
 15. You can now call the displayed "Function URL" and you should see a valid response.
 16. Click on the `Configuration` and select `Environment variables` on the left side.
-17. Add key `ISSUER` and set it to your service name.
-18. Add key `SALT` and set it to a random string like `my53cr375A17`.
-19. Add key `JWT_PRIVATE_KEY` and set it to your DER base64-encoded JWT private key (`MII...`).
-20. Click on `Save`.
+17. Add key `JWT_PRIVATE_KEY` and set it to your DER base64-encoded JWT private key (`MII...`).
+18. Click on `Save`.
 
 The function should now be ready.
 

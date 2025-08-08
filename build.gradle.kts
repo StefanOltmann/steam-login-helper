@@ -48,7 +48,7 @@ kotlin {
 
             /* Cryptography (JWT) */
             implementation(libs.jwtkt)
-            implementation(libs.jwtkt.rsa)
+            implementation(libs.jwtkt.ecdsa)
         }
 
         nativeTest.dependencies {

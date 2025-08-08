@@ -21,11 +21,10 @@ package de.stefan_oltmann.steam
 import com.appstractive.jwt.UnsignedJWT
 import com.appstractive.jwt.jwt
 import com.appstractive.jwt.sign
-import com.appstractive.jwt.signatures.rs256
+import com.appstractive.jwt.signatures.es256
 import dev.whyoleg.cryptography.CryptographyProvider
-import dev.whyoleg.cryptography.algorithms.RSA
-import dev.whyoleg.cryptography.algorithms.SHA256
-import dev.whyoleg.cryptography.operations.Hasher
+import dev.whyoleg.cryptography.algorithms.EC
+import dev.whyoleg.cryptography.algorithms.ECDSA
 import io.github.trueangle.knative.lambda.runtime.api.Context
 import io.github.trueangle.knative.lambda.runtime.events.apigateway.APIGatewayV2Request
 import io.github.trueangle.knative.lambda.runtime.events.apigateway.APIGatewayV2Response
@@ -51,6 +50,7 @@ import kotlinx.cinterop.toKString
 import platform.posix.getenv
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.ExperimentalTime
 
 /**
  * The main class handling all the logic.
@@ -60,19 +60,12 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
     private const val STEAM_LOGIN_URL = "https://steamcommunity.com/openid/login"
 
     @OptIn(ExperimentalForeignApi::class)
-    private val jwtIssuer = getenv("ISSUER")?.toKString() ?: error("ISSUER not set.")
-
-    @OptIn(ExperimentalForeignApi::class)
     private val jwtPrivateKeyBase64 =
         getenv("JWT_PRIVATE_KEY")?.toKString() ?: error("JWT_PRIVATE_KEY not set.")
 
     @OptIn(ExperimentalEncodingApi::class)
     private val jwtPrivateKey =
         Base64.decode(jwtPrivateKeyBase64)
-
-    @OptIn(ExperimentalForeignApi::class)
-    private val salt =
-        getenv("SALT")?.toKString() ?: error("SALT not set.")
 
     @OptIn(ExperimentalForeignApi::class)
     private val apiKey =
@@ -115,9 +108,11 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
 
                     return APIGatewayV2Response(
                         statusCode = HttpStatusCode.Unauthorized.value,
+                        headers = mapOf(
+                            "Content-Type" to "text/plain"
+                        ),
                         body = "Please provide an API key.",
                         cookies = null,
-                        headers = null,
                         isBase64Encoded = false
                     )
                 }
@@ -136,9 +131,11 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
 
             return APIGatewayV2Response(
                 statusCode = HttpStatusCode.OK.value,
-                body = "Hello from SteamLoginHelper! \uD83D\uDC4B",
+                headers = mapOf(
+                    "Content-Type" to "text/plain"
+                ),
+                body = "Hello from SteamLoginHelper!",
                 cookies = null,
-                headers = null,
                 isBase64Encoded = false
             )
 
@@ -148,9 +145,11 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
 
             return APIGatewayV2Response(
                 statusCode = HttpStatusCode.InternalServerError.value,
+                headers = mapOf(
+                    "Content-Type" to "text/plain"
+                ),
                 body = "Sorry, something went wrong!",
                 cookies = null,
-                headers = null,
                 isBase64Encoded = false
             )
         }
@@ -186,14 +185,16 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
          */
         return APIGatewayV2Response(
             statusCode = HttpStatusCode.Found.value,
-            headers = mapOf("Location" to steamLoginUrl),
+            headers = mapOf(
+                "Location" to steamLoginUrl
+            ),
             body = "Redirecting to Steam login page...",
             isBase64Encoded = false,
             cookies = null
         )
     }
 
-    @OptIn(ExperimentalEncodingApi::class)
+    @OptIn(ExperimentalEncodingApi::class, ExperimentalTime::class)
     private suspend fun handleCallback(
         input: APIGatewayV2Request
     ): APIGatewayV2Response {
@@ -211,7 +212,9 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
         if (steamId == null)
             return APIGatewayV2Response(
                 statusCode = HttpStatusCode.Unauthorized.value,
-                headers = null,
+                headers = mapOf(
+                    "Content-Type" to "text/plain"
+                ),
                 body = "Sorry, we couldn't verify your Steam login.",
                 isBase64Encoded = false,
                 cookies = null
@@ -222,18 +225,16 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
          * We now create a JWT for that.
          */
 
-        val steamIdHash = saltedSha256(steamId)
-
         val jwt: UnsignedJWT = jwt {
             claims {
-                issuer = jwtIssuer
                 subject = steamId
-                claim("hash", steamIdHash)
+                audience = "steam"
+                issuedAt = kotlinx.datetime.Clock.System.now()
             }
         }
 
         val signedJWT = jwt.sign {
-            rs256 {
+            es256 {
                 der(jwtPrivateKey)
             }
         }
@@ -247,7 +248,9 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
              */
             APIGatewayV2Response(
                 statusCode = HttpStatusCode.Found.value,
-                headers = mapOf("Location" to "$redirectUrl?token=$jwtString"),
+                headers = mapOf(
+                    "Location" to "$redirectUrl?token=$jwtString"
+                ),
                 body = "Redirecting to $redirectUrl ...",
                 isBase64Encoded = false,
                 cookies = null
@@ -267,7 +270,7 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
                     <!DOCTYPE html>
                     <html lang="en">
                     <head>
-                        <meta charset="UTF-8">
+                        <meta charset="UTF-8" />
                         <title>SteamLoginHelper</title>
                         <style>
                             body {
@@ -282,11 +285,15 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
                                 white-space: pre-wrap;
                                 word-break: break-all;
                             }
+                            button {
+                                margin-bottom: 1em;
+                            }
                         </style>
                     </head>
                     <body>
                         <h3>This is your auth token. Keep it a secret!</h3>
-                        <pre>$jwtString</pre>
+                        <button onclick="navigator.clipboard.writeText(document.getElementById('token').innerText)">Copy</button>
+                        <pre id="token">$jwtString</pre>
                     </body>
                     </html>
                 """.trimIndent(),
@@ -301,7 +308,9 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
         if (allowKeyGeneration != "TRUE")
             return APIGatewayV2Response(
                 statusCode = HttpStatusCode.NotAcceptable.value,
-                headers = null,
+                headers = mapOf(
+                    "Content-Type" to "text/plain"
+                ),
                 body = "Key generation disabled.",
                 isBase64Encoded = false,
                 cookies = null
@@ -309,12 +318,12 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
 
         val keys = CryptographyProvider
             .Default
-            .get(RSA.PKCS1)
-            .keyPairGenerator(digest = SHA256)
+            .get(ECDSA)
+            .keyPairGenerator(curve = EC.Curve.P256)
             .generateKey()
 
-        val privateKey = keys.privateKey.encodeToByteArray(RSA.PrivateKey.Format.DER.Generic)
-        val publicKey = keys.publicKey.encodeToByteArray(RSA.PublicKey.Format.DER.Generic)
+        val privateKey = keys.privateKey.encodeToByteArray(EC.PrivateKey.Format.DER.Generic)
+        val publicKey = keys.publicKey.encodeToByteArray(EC.PublicKey.Format.DER)
 
         Log.info("PRIVATE: " + privateKey.encodeBase64())
         Log.info("PUBLIC: " + publicKey.encodeBase64())
@@ -356,17 +365,5 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
         return if (responseText.contains("is_valid:true")) {
             params["openid.claimed_id"]?.substringAfterLast("/")
         } else null
-    }
-
-    @OptIn(ExperimentalStdlibApi::class)
-    private suspend fun saltedSha256(input: String): String {
-
-        val hasher: Hasher = CryptographyProvider.Default.get(SHA256).hasher()
-
-        val digest = hasher.hash(
-            data = (input + salt).encodeToByteArray()
-        )
-
-        return digest.toHexString()
     }
 }

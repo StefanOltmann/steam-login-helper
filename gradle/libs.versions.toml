@@ -12,7 +12,7 @@ ktor-client-curl = { module = "io.ktor:ktor-client-curl", version.ref = "ktor" }
 trueangle-lambda-runtime = { module = "io.github.trueangle:lambda-runtime", version.ref = "trueangle-lambda" }
 trueangle-lambda-events = { module = "io.github.trueangle:lambda-events", version.ref = "trueangle-lambda" }
 jwtkt = { module = "com.appstractive:jwt-kt", version.ref = "jwtkt" }
-jwtkt-rsa = { module = "com.appstractive:jwt-rsa-kt", version.ref = "jwtkt" }
+jwtkt-ecdsa = { module = "com.appstractive:jwt-ecdsa-kt", version.ref = "jwtkt" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
