@@ -132,9 +132,21 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
             return APIGatewayV2Response(
                 statusCode = HttpStatusCode.OK.value,
                 headers = mapOf(
-                    "Content-Type" to "text/plain"
+                    "Content-Type" to "text/html; charset=utf-8"
                 ),
-                body = "Hello from SteamLoginHelper!",
+                body = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <link rel="icon" href="data:,">
+                        <title>SteamLoginHelper</title>
+                    </head>
+                    <body>
+                        Hello from SteamLoginHelper!
+                    </body>
+                    </html>
+                """.trimIndent(),
                 cookies = null,
                 isBase64Encoded = false
             )
@@ -264,13 +276,14 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
             APIGatewayV2Response(
                 statusCode = HttpStatusCode.OK.value,
                 headers = mapOf(
-                    "Content-Type" to "text/html"
+                    "Content-Type" to "text/html; charset=utf-8"
                 ),
                 body = """
                     <!DOCTYPE html>
                     <html lang="en">
                     <head>
                         <meta charset="UTF-8" />
+                        <link rel="icon" href="data:,">
                         <title>SteamLoginHelper</title>
                         <style>
                             body {
