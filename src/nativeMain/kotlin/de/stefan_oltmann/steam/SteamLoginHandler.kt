@@ -25,6 +25,8 @@ import com.appstractive.jwt.signatures.es256
 import dev.whyoleg.cryptography.CryptographyProvider
 import dev.whyoleg.cryptography.algorithms.EC
 import dev.whyoleg.cryptography.algorithms.ECDSA
+import dev.whyoleg.cryptography.algorithms.SHA256
+import dev.whyoleg.cryptography.operations.Hasher
 import io.github.trueangle.knative.lambda.runtime.api.Context
 import io.github.trueangle.knative.lambda.runtime.events.apigateway.APIGatewayV2Request
 import io.github.trueangle.knative.lambda.runtime.events.apigateway.APIGatewayV2Response
@@ -60,6 +62,10 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
     private const val STEAM_LOGIN_URL = "https://steamcommunity.com/openid/login"
 
     @OptIn(ExperimentalForeignApi::class)
+    private val jwtIssuer =
+        getenv("ISSUER")?.toKString() ?: error("ISSUER not set.")
+
+    @OptIn(ExperimentalForeignApi::class)
     private val jwtPrivateKeyBase64 =
         getenv("JWT_PRIVATE_KEY")?.toKString() ?: error("JWT_PRIVATE_KEY not set.")
 
@@ -74,6 +80,10 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
     @OptIn(ExperimentalForeignApi::class)
     private val allowKeyGeneration =
         getenv("KEY_GENERATION")?.toKString() ?: error("KEY_GENERATION not set.")
+
+    @OptIn(ExperimentalForeignApi::class)
+    private val salt =
+        getenv("SALT")?.toKString() ?: error("SALT not set.")
 
     private val httpClient = HttpClient(Curl) {
 
@@ -237,11 +247,15 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
          * We now create a JWT for that.
          */
 
+        val steamIdHash = saltedSha256(steamId)
+
         val jwt: UnsignedJWT = jwt {
             claims {
+                issuer = jwtIssuer
+                issuedAt = kotlinx.datetime.Clock.System.now()
                 subject = steamId
                 audience = "steam"
-                issuedAt = kotlinx.datetime.Clock.System.now()
+                claim("hash", steamIdHash)
             }
         }
 
@@ -378,5 +392,17 @@ object SteamLoginHandler : LambdaBufferedHandler<APIGatewayV2Request, APIGateway
         return if (responseText.contains("is_valid:true")) {
             params["openid.claimed_id"]?.substringAfterLast("/")
         } else null
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    private suspend fun saltedSha256(input: String): String {
+
+        val hasher: Hasher = CryptographyProvider.Default.get(SHA256).hasher()
+
+        val digest = hasher.hash(
+            data = (input + salt).encodeToByteArray()
+        )
+
+        return digest.toHexString()
     }
 }
