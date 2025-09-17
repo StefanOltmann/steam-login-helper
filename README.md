@@ -1,7 +1,7 @@
 # Steam Login Helper
 
-![Kotlin](https://img.shields.io/badge/kotlin-2.1.22-blue.svg?logo=kotlin)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+![Kotlin](https://img.shields.io/badge/kotlin-2.2.20-blue.svg?logo=kotlin)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-gray?&logo=GitHub-Sponsors&logoColor=EA4AAA)](https://github.com/sponsors/StefanOltmann)
 
 **Amazon AWS Lambda function for Steam login**
@@ -67,5 +67,6 @@ please feel free to submit a pull request.
 
 ## License
 
-Steam Login Helper is licensed under the GNU General Public License (GPL),
+Steam Login Helper is licensed under the GNU Affero General Public License (AGPL),
 ensuring the community's freedom to use, modify, and distribute the software.
+
