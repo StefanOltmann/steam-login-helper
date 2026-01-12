@@ -57,8 +57,14 @@ import kotlin.io.encoding.Base64
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.uuid.ExperimentalUuidApi
+import java.net.URLEncoder
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 private const val STEAM_LOGIN_URL = "https://steamcommunity.com/openid/login"
+
+private const val PRIVACY_ROUTE = "/privacy"
+private const val CONSENT_TOKEN_TTL_MS = 10 * 60 * 1000L
 
 private val jwtIssuer: String =
     System.getenv("ISSUER") ?: error("ISSUER not set.")
@@ -86,6 +92,8 @@ private val strictJson = Json {
 }
 
 private val httpClient = HttpClient()
+
+private val consentTokens = ConcurrentHashMap<String, Long>()
 
 @OptIn(ExperimentalSerializationApi::class)
 fun Application.configureRouting() {
@@ -134,13 +142,15 @@ private fun Application.configureRoutingInternal() {
             call.respondText("Steam Login Helper $VERSION (up since $uptimeHours hours and $minutes minutes)")
         }
 
+        /*
+         * This redirects to the Steam login page
+         */
         get("/login") {
 
-            /*
-             * This redirects to the Steam login page
-             */
-
             if (!ensureValidApiKey(call))
+                return@get
+
+            if (!ensurePrivacyAccepted(call))
                 return@get
 
             /* Case-insensitive header lookup because AWS API Gateway often lowercases headers. */
@@ -169,6 +179,85 @@ private fun Application.configureRoutingInternal() {
                 "&openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select"
 
             call.respondRedirect(steamLoginUrl)
+        }
+
+        get("/privacy") {
+
+            val returnToBase64 = call.request.queryParameters["return_to"] ?: ""
+
+            call.respondText(
+                text = """
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8" />
+                        <link rel="icon" href="data:,">
+                        <title>Privacy Policy</title>
+                        <style>
+                            body {
+                                font-family: sans-serif;
+                                padding: 2em;
+                                max-width: 780px;
+                                margin: 0 auto;
+                                line-height: 1.5;
+                            }
+                            h1 {
+                                margin-top: 0;
+                            }
+                            .card {
+                                border: 1px solid #ddd;
+                                border-radius: 10px;
+                                padding: 1.5em;
+                                background: #fafafa;
+                            }
+                            .actions {
+                                margin-top: 1.5em;
+                            }
+                            button {
+                                padding: 0.6em 1.2em;
+                                font-size: 1rem;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="card">
+                            <h1>Login with Steam</h1>
+                            <p>
+                                This service processes your Steam ID to generate an authentication token.
+                                We do not store your Steam ID or tokens on this server.
+                            </p>
+                            <p>
+                                For the login flow, your browser is redirected to Steam, and Steam returns
+                                your Steam ID to this service for verification.
+                            </p>
+                            <div class="actions">
+                                <form action="/privacy/accept" method="get">
+                                    <input type="hidden" name="return_to" value="$returnToBase64" />
+                                    <button type="submit">Accept and Continue</button>
+                                </form>
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                """.trimIndent(),
+                contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8),
+                status = HttpStatusCode.OK
+            )
+        }
+
+        get("/privacy/accept") {
+
+            val returnToBase64 = call.request.queryParameters["return_to"] ?: ""
+
+            val returnTo = decodeReturnToOrDefault(returnToBase64, "/login")
+
+            val token = UUID.randomUUID().toString()
+
+            val expiresAt = Clock.System.now().toEpochMilliseconds() + CONSENT_TOKEN_TTL_MS
+
+            consentTokens[token] = expiresAt
+
+            call.respondRedirect(appendQueryParam(returnTo, "consent_token", token))
         }
 
         get("/callback/") {
@@ -311,6 +400,61 @@ private suspend fun RoutingContext.handleCallback(
             status = HttpStatusCode.OK
         )
     }
+}
+
+private suspend fun ensurePrivacyAccepted(
+    call: ApplicationCall
+): Boolean {
+
+    val token = call.request.queryParameters["consent_token"]
+    val accepted = token != null && isConsentTokenValid(token)
+
+    if (!accepted) {
+
+        val returnToBase64 = Base64.UrlSafe.encode(call.request.uri.encodeToByteArray())
+
+        call.respondRedirect("$PRIVACY_ROUTE?return_to=$returnToBase64")
+
+        return false
+    }
+
+    return true
+}
+
+private fun isConsentTokenValid(
+    token: String
+): Boolean {
+
+    val expiresAt = consentTokens.remove(token) ?: return false
+
+    return expiresAt >= Clock.System.now().toEpochMilliseconds()
+}
+
+private fun decodeReturnToOrDefault(
+    base64: String,
+    defaultValue: String
+): String {
+
+    if (base64.isBlank())
+        return defaultValue
+
+    return try {
+        val decoded = Base64.UrlSafe.decode(base64).decodeToString()
+        if (decoded.startsWith("/")) decoded else defaultValue
+    } catch (_: IllegalArgumentException) {
+        defaultValue
+    }
+}
+
+private fun appendQueryParam(
+    url: String,
+    name: String,
+    value: String
+): String {
+
+    val separator = if (url.contains("?")) "&" else "?"
+    val encodedValue = URLEncoder.encode(value, Charsets.UTF_8)
+    return "$url$separator$name=$encodedValue"
 }
 
 /**
