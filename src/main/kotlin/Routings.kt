@@ -327,7 +327,7 @@ private fun generatePrivacyPolicy(
                 Du wirst zu <strong>Steam (Valve Corporation, USA)</strong> weitergeleitet.
                 Durch den Login wird deine <strong>Steam-ID</strong> übermittelt und ein
                 <strong>Authentifizierungs-Token</strong> erzeugt, welches lokal in deinem
-                Browser gespeichert wird. Dieser Login-Dienst speichert keine Daten.
+                Browser gespeichert wird. Dieser Login-Dienst speichert serverseitig keine Daten.
             </p>
 
             <p>
@@ -344,7 +344,7 @@ private fun generatePrivacyPolicy(
                 You will be redirected to <strong>Steam (Valve Corporation, USA)</strong>.
                 By logging in, your <strong>Steam ID</strong> will be transmitted and an
                 <strong>authentication token</strong> will be created and stored locally
-                in your browser. This login service does not store any data.
+                in your browser. This login service does not store any data on the server.
             </p>
 
             <p>
