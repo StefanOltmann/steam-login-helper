@@ -185,14 +185,18 @@ private fun Application.configureRoutingInternal() {
 
             val returnToBase64 = call.request.queryParameters["return_to"] ?: ""
 
+            val language = resolveLanguage(call)
+
+            val isGerman = language == "de"
+
             call.respondText(
                 text = """
                     <!DOCTYPE html>
-                    <html lang="en">
+                    <html lang="${if (isGerman) "de" else "en"}">
                     <head>
                         <meta charset="UTF-8" />
                         <link rel="icon" href="data:,">
-                        <title>Privacy Policy</title>
+                        <title>${if (isGerman) "Datenschutzerklaerung" else "Privacy Policy"}</title>
                         <style>
                             body {
                                 font-family: sans-serif;
@@ -221,7 +225,20 @@ private fun Application.configureRoutingInternal() {
                     </head>
                     <body>
                         <div class="card">
-                            <h1>Login with Steam</h1>
+                            <h1>${if (isGerman) "Datenschutzerklaerung" else "Privacy Policy"}</h1>
+                            ${if (isGerman) """
+                            <p>
+                                Dieser Dienst verarbeitet Ihre Steam-ID, um ein Authentifizierungs-Token zu erzeugen.
+                                Wir speichern weder Ihre Steam-ID noch Tokens auf diesem Server.
+                            </p>
+                            <p>
+                                Fuer den Login leitet Ihr Browser zu Steam weiter, und Steam sendet Ihre Steam-ID
+                                zur Verifikation an diesen Dienst zurueck.
+                            </p>
+                            <p>
+                                Mit dem Fortfahren bestaetigen Sie, dass Sie diese Datenschutzerklaerung akzeptieren.
+                            </p>
+                            """.trimIndent() else """
                             <p>
                                 This service processes your Steam ID to generate an authentication token.
                                 We do not store your Steam ID or tokens on this server.
@@ -230,10 +247,14 @@ private fun Application.configureRoutingInternal() {
                                 For the login flow, your browser is redirected to Steam, and Steam returns
                                 your Steam ID to this service for verification.
                             </p>
+                            <p>
+                                By continuing, you acknowledge and accept this privacy policy.
+                            </p>
+                            """.trimIndent()}
                             <div class="actions">
                                 <form action="/privacy/accept" method="get">
                                     <input type="hidden" name="return_to" value="$returnToBase64" />
-                                    <button type="submit">Accept and Continue</button>
+                                    <button type="submit">${if (isGerman) "Akzeptieren und fortfahren" else "Accept and Continue"}</button>
                                 </form>
                             </div>
                         </div>
@@ -419,6 +440,23 @@ private suspend fun ensurePrivacyAccepted(
     }
 
     return true
+}
+
+private fun resolveLanguage(
+    call: ApplicationCall
+): String {
+
+    val requested = call.request.queryParameters["lang"]?.lowercase()?.trim()
+
+    if (requested == "de")
+        return "de"
+
+    val acceptLanguage = call.request.header(HttpHeaders.AcceptLanguage)?.lowercase()
+        ?: return "en"
+
+    val parts = acceptLanguage.split(",")
+
+    return if (parts.any { it.trim().startsWith("de") }) "de" else "en"
 }
 
 private fun isConsentTokenValid(
