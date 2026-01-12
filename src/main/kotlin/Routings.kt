@@ -52,7 +52,6 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import io.ktor.util.encodeBase64
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.Json
 import kotlin.io.encoding.Base64
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -83,13 +82,6 @@ private val allowKeyGeneration: Boolean =
 
 private val salt: String =
     System.getenv("SALT") ?: error("SALT not set.")
-
-private val strictJson = Json {
-
-    ignoreUnknownKeys = false
-
-    encodeDefaults = true
-}
 
 private val httpClient = HttpClient()
 
@@ -190,77 +182,7 @@ private fun Application.configureRoutingInternal() {
             val isGerman = language == "de"
 
             call.respondText(
-                text = """
-                    <!DOCTYPE html>
-                    <html lang="${if (isGerman) "de" else "en"}">
-                    <head>
-                        <meta charset="UTF-8" />
-                        <link rel="icon" href="data:,">
-                        <title>${if (isGerman) "Datenschutzerklaerung" else "Privacy Policy"}</title>
-                        <style>
-                            body {
-                                font-family: sans-serif;
-                                padding: 2em;
-                                max-width: 780px;
-                                margin: 0 auto;
-                                line-height: 1.5;
-                            }
-                            h1 {
-                                margin-top: 0;
-                            }
-                            .card {
-                                border: 1px solid #ddd;
-                                border-radius: 10px;
-                                padding: 1.5em;
-                                background: #fafafa;
-                            }
-                            .actions {
-                                margin-top: 1.5em;
-                            }
-                            button {
-                                padding: 0.6em 1.2em;
-                                font-size: 1rem;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="card">
-                            <h1>${if (isGerman) "Datenschutzerklaerung" else "Privacy Policy"}</h1>
-                            ${if (isGerman) """
-                            <p>
-                                Dieser Dienst verarbeitet Ihre Steam-ID, um ein Authentifizierungs-Token zu erzeugen.
-                                Wir speichern weder Ihre Steam-ID noch Tokens auf diesem Server.
-                            </p>
-                            <p>
-                                Fuer den Login leitet Ihr Browser zu Steam weiter, und Steam sendet Ihre Steam-ID
-                                zur Verifikation an diesen Dienst zurueck.
-                            </p>
-                            <p>
-                                Mit dem Fortfahren bestaetigen Sie, dass Sie diese Datenschutzerklaerung akzeptieren.
-                            </p>
-                            """.trimIndent() else """
-                            <p>
-                                This service processes your Steam ID to generate an authentication token.
-                                We do not store your Steam ID or tokens on this server.
-                            </p>
-                            <p>
-                                For the login flow, your browser is redirected to Steam, and Steam returns
-                                your Steam ID to this service for verification.
-                            </p>
-                            <p>
-                                By continuing, you acknowledge and accept this privacy policy.
-                            </p>
-                            """.trimIndent()}
-                            <div class="actions">
-                                <form action="/privacy/accept" method="get">
-                                    <input type="hidden" name="return_to" value="$returnToBase64" />
-                                    <button type="submit">${if (isGerman) "Akzeptieren und fortfahren" else "Accept and Continue"}</button>
-                                </form>
-                            </div>
-                        </div>
-                    </body>
-                    </html>
-                """.trimIndent(),
+                text = generatePrivacyPolicy(isGerman, returnToBase64).trimIndent(),
                 contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8),
                 status = HttpStatusCode.OK
             )
@@ -385,43 +307,141 @@ private suspend fun RoutingContext.handleCallback(
          * Respond with an HTML page displaying the token.
          */
         call.respondText(
-            text = """
-                    <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8" />
-                        <link rel="icon" href="data:,">
-                        <title>SteamLoginHelper</title>
-                        <style>
-                            body {
-                                font-family: sans-serif;
-                                padding: 2em;
-                            }
-                            pre {
-                                background-color: #f4f4f4;
-                                padding: 1em;
-                                border: 1px solid #ccc;
-                                border-radius: 8px;
-                                white-space: pre-wrap;
-                                word-break: break-all;
-                            }
-                            button {
-                                margin-bottom: 1em;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <h3>This is your auth token. Keep it a secret!</h3>
-                        <button onclick="navigator.clipboard.writeText(document.getElementById('token').innerText)">Copy</button>
-                        <pre id="token">$jwtString</pre>
-                    </body>
-                    </html>
-                """.trimIndent(),
+            text = generateCodeDisplayPage(jwtString),
             contentType = ContentType.Text.Html.withCharset(Charsets.UTF_8),
             status = HttpStatusCode.OK
         )
     }
 }
+
+private fun generatePrivacyPolicy(
+    isGerman: Boolean,
+    returnToBase64: String
+): String {
+
+    val explainText = if (isGerman)
+        """
+            <h1>Anmeldung mit Steam</h1>
+
+            <p>
+                Du wirst zu <strong>Steam (Valve Corporation, USA)</strong> weitergeleitet.
+                Durch den Login wird deine <strong>Steam-ID</strong> übermittelt und ein
+                <strong>Authentifizierungs-Token</strong> erzeugt, welches lokal in deinem
+                Browser gespeichert wird. Dieser Login-Dienst speichert keine Daten.
+            </p>
+
+            <p>
+                Mit dem Fortfahren willigst du freiwillig in die beschriebene Datenverarbeitung ein.
+                Du kannst diese Einwilligung jederzeit widerrufen, indem du die Website-Daten
+                in deinem Browser löschst. Weitere Informationen findest du in der Datenschutzerklärung.
+            </p>
+        """
+    else
+        """
+            <h1>Login with Steam</h1>
+
+            <p>
+                You will be redirected to <strong>Steam (Valve Corporation, USA)</strong>.
+                By logging in, your <strong>Steam ID</strong> will be transmitted and an
+                <strong>authentication token</strong> will be created and stored locally
+                in your browser. This login service does not store any data.
+            </p>
+
+            <p>
+                By continuing, you voluntarily consent to the described data processing.
+                You can revoke this consent at any time by deleting the website data
+                in your browser. For more information, see the privacy policy.
+            </p>
+        """
+
+    val acceptButtonText = if (isGerman)
+        "Akzeptieren und fortfahren"
+    else
+        "Accept and continue"
+
+    return """
+        <!DOCTYPE html>
+        <html lang="${if (isGerman) "de" else "en"}">
+        <head>
+            <meta charset="UTF-8" />
+            <link rel="icon" href="data:,">
+            <title>Steam Login</title>
+            <style>
+                body {
+                    font-family: sans-serif;
+                    padding: 2em;
+                    max-width: 780px;
+                    margin: 0 auto;
+                    line-height: 1.5;
+                }
+                h1 {
+                    margin-top: 0;
+                }
+                .card {
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    padding: 1.5em;
+                    background: #fafafa;
+                }
+                .actions {
+                    margin-top: 1.5em;
+                }
+                button {
+                    padding: 0.6em 1.2em;
+                    font-size: 1rem;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+
+                $explainText
+
+                <div class="actions">
+                    <form action="/privacy/accept" method="get">
+                        <input type="hidden" name="return_to" value="$returnToBase64" />
+                        <button type="submit">$acceptButtonText</button>
+                    </form>
+                </div>
+            </div>
+        </body>
+        </html>
+        """.trimIndent()
+}
+
+private fun generateCodeDisplayPage(
+    jwtString: String
+) = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="data:,">
+        <title>SteamLoginHelper</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                padding: 2em;
+            }
+            pre {
+                background-color: #f4f4f4;
+                padding: 1em;
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                white-space: pre-wrap;
+                word-break: break-all;
+            }
+            button {
+                margin-bottom: 1em;
+            }
+        </style>
+    </head>
+    <body>
+        <h3>This is your auth token. Keep it a secret!</h3>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('token').innerText)">Copy</button>
+        <pre id="token">$jwtString</pre>
+    </body>
+    </html>""".trimIndent()
 
 private suspend fun ensurePrivacyAccepted(
     call: ApplicationCall
@@ -450,6 +470,9 @@ private fun resolveLanguage(
 
     if (requested == "de")
         return "de"
+
+    if (requested == "en")
+        return "en"
 
     val acceptLanguage = call.request.header(HttpHeaders.AcceptLanguage)?.lowercase()
         ?: return "en"
