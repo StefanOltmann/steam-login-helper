@@ -243,8 +243,8 @@ private fun Application.configureRoutingInternal() {
             val privateKey = keys.privateKey.encodeToByteArray(EC.PrivateKey.Format.DER.Generic)
             val publicKey = keys.publicKey.encodeToByteArray(EC.PublicKey.Format.DER)
 
-            log("PRIVATE: " + privateKey.encodeBase64())
-            log("PUBLIC: " + publicKey.encodeBase64())
+            log("PRIVATE: " + Base64.encode(privateKey))
+            log("PUBLIC: " + Base64.encode(publicKey))
 
             call.respondText(
                 text = "Generated keys. Check your logs.",
@@ -500,8 +500,14 @@ private fun decodeReturnToOrDefault(
         return defaultValue
 
     return try {
+
         val decoded = Base64.UrlSafe.decode(base64).decodeToString()
-        if (decoded.startsWith("/")) decoded else defaultValue
+
+        if (decoded.startsWith("/"))
+            decoded
+        else
+            defaultValue
+
     } catch (_: IllegalArgumentException) {
         defaultValue
     }
@@ -581,9 +587,10 @@ private suspend fun requestValidatedSteamId(
 
     val responseText = response.bodyAsText()
 
-    return if (responseText.contains("is_valid:true")) {
+    return if (responseText.contains("is_valid:true"))
         requestParameters["openid.claimed_id"]?.substringAfterLast("/")
-    } else null
+    else
+        null
 }
 
 @OptIn(ExperimentalStdlibApi::class)
